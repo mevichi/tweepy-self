@@ -1,3 +1,4 @@
+from datetime import datetime, timezone, timedelta
 from typing import Any, Literal, Iterable
 from time import time
 import asyncio
@@ -7,6 +8,8 @@ import re
 
 from loguru import logger
 from curl_cffi import requests
+
+from ._email_client.email_client import EmailClient
 from yarl import URL
 
 from ._capsolver.fun_captcha import FunCaptcha, FunCaptchaTypeEnm
@@ -94,6 +97,7 @@ class Client(BaseHTTPClient):
         self.max_unlock_attempts = max_unlock_attempts
         self.auto_relogin = auto_relogin
         self._update_account_info_on_startup = update_account_info_on_startup
+        self.email_client = EmailClient(account.email, account.email_password, 30)
 
         self.gql = GQLClient(self)
 
@@ -1578,6 +1582,21 @@ class Client(BaseHTTPClient):
         ]
         return await self._complete_subtask(flow_token, inputs, auth=False)
 
+    async def _login_email_auth_challenge(self, flow_token, email, password):
+        print("Waiting for the email auth challange")
+        now_time = datetime.now(timezone.utc) - timedelta(seconds=30)
+        code = await self.email_client.get_email_code(now_time)
+        
+        inputs = [
+            {
+                "subtask_id": "LoginAcid",
+                "enter_text": {"text": code, "link": "next_link"},
+            }
+        ]
+        
+        print(f"Found {code} and sending email auth challange code")
+        return await self._complete_subtask(flow_token, inputs, auth=False)
+    
     async def _account_duplication_check(self, flow_token):
         inputs = [
             {
@@ -1686,12 +1705,12 @@ class Client(BaseHTTPClient):
                     )
 
                 if subtask.primary_text == "Check your email":
-                    raise TwitterException(
-                        f"Failed to login. Task id: LoginAcid."
-                        f" Email verification required!"
-                        f" No IMAP handler for this version of library :<"
-                    )
-
+                    # raise TwitterException(
+                    #     f"Failed to login. Task id: LoginAcid."
+                    #     f" Email verification required!"
+                    #     f" No IMAP handler for this version of library :<"
+                    # )
+                    flow_token, subtasks = await self._login_email_auth_challenge(flow_token, self.account.email, self.account.email_password)
                 try:
                     # fmt: off
                     flow_token, subtasks = await self._login_acid(flow_token, self.account.email)

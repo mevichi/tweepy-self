@@ -15,6 +15,7 @@ class Account(User):
     ct0:         str | None = None  # 160
     password:    str | None = None  # 128
     email:       str | None = None  # 254
+    email_password:       str | None = None  # 254
     totp_secret: str | None = None  # 16
     backup_code: str | None = None  # 12
     status: AccountStatus = AccountStatus.UNKNOWN
@@ -80,7 +81,7 @@ def extract_accounts_to_file(
     accounts: Iterable[Account],
     *,
     separator: str = ":",
-    fields: Sequence[str] = ("auth_token", "password", "email", "username"),
+    fields: Sequence[str] = ("auth_token", "password", "email", "email_password", "username"),
 ):
     lines = []
     for account in accounts:
